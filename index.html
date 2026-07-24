@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#0f0e17"/>
+  <title>Hangman</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0e17;
+      --surface:   #1a1a2e;
+      --border:    #2a2a4a;
+      --text:      #e8e8f0;
+      --muted:     #6b6b8a;
+      --accent:    #7c6bff;
+      --hit:       #3ddc84;
+      --miss:      #ff5c5c;
+      --gold:      #ffd166;
+      --rope:      #c9b89a;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    #app {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 24px;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 0 10px;
+    }
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+
+    #lives-display {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+    #lives-display b { color: var(--miss); font-size: 16px; }
+
+    /* ── Canvas ───────────────────────────────────────────── */
+    #scaffold-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin: 4px 0 2px;
+    }
+    svg#scaffold { display: block; }
+
+    /* ── Status ───────────────────────────────────────────── */
+    #status {
+      min-height: 28px;
+      font-size: 15px;
+      letter-spacing: 1px;
+      text-align: center;
+      margin: 4px 0 6px;
+      transition: color 0.3s;
+    }
+    #status.win  { color: var(--hit); }
+    #status.lose { color: var(--miss); }
+
+    /* ── Word display ─────────────────────────────────────── */
+    #word-display {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin: 6px 0 14px;
+      min-height: 54px;
+    }
+    .letter-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .letter-cell span {
+      font-size: 26px;
+      font-weight: 700;
+      min-width: 22px;
+      text-align: center;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--gold);
+      transition: opacity 0.2s;
+    }
+    .letter-cell .bar {
+      width: 26px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* ── Keyboard ─────────────────────────────────────────── */
+    #keyboard {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-bottom: 18px;
+    }
+    .key {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .key:active:not(:disabled) { transform: scale(0.92); }
+    .key.hit  { background: #1a3d2b; border-color: var(--hit);  color: var(--hit);  cursor: default; }
+    .key.miss { background: #3d1a1a; border-color: var(--miss); color: var(--miss); cursor: default; opacity: 0.7; }
+    .key:disabled { cursor: not-allowed; }
+
+    /* ── New game button ──────────────────────────────────── */
+    #new-game-btn {
+      padding: 12px 36px;
+      border-radius: 10px;
+      border: 1.5px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #new-game-btn:active { background: var(--accent); color: var(--bg); }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    footer {
+      margin-top: auto;
+      padding-top: 20px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-align: center;
+    }
+
+    /* ── Reveal animation ─────────────────────────────────── */
+    @keyframes pop {
+      0%   { transform: scale(0.5); opacity: 0; }
+      70%  { transform: scale(1.2); }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+    .letter-cell span.revealed { animation: pop 0.25s ease forwards; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">HANG<span>MAN</span></div>
+    <div id="lives-display">LIVES: <b id="lives-num">6</b></div>
+  </header>
+
+  <!-- Scaffold SVG -->
+  <div id="scaffold-wrap">
+    <svg id="scaffold" width="220" height="190" viewBox="0 0 220 190" xmlns="http://www.w3.org/2000/svg">
+      <!-- Static scaffold -->
+      <line x1="20"  y1="180" x2="200" y2="180" stroke="#4a4a6a" stroke-width="3" stroke-linecap="round"/>
+      <line x1="60"  y1="180" x2="60"  y2="15"  stroke="#4a4a6a" stroke-width="3" stroke-linecap="round"/>
+      <line x1="60"  y1="15"  x2="135" y2="15"  stroke="#4a4a6a" stroke-width="3" stroke-linecap="round"/>
+      <line x1="135" y1="15"  x2="135" y2="38"  stroke="#c9b89a" stroke-width="2" stroke-linecap="round"/>
+      <!-- Body parts (hidden by default) -->
+      <circle id="p-head" cx="135" cy="52"  r="14" fill="none" stroke="#ff5c5c" stroke-width="2.5" visibility="hidden"/>
+      <line   id="p-body" x1="135" y1="66"  x2="135" y2="110" stroke="#ff5c5c" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/>
+      <line   id="p-larm" x1="135" y1="78"  x2="113" y2="98"  stroke="#ff5c5c" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/>
+      <line   id="p-rarm" x1="135" y1="78"  x2="157" y2="98"  stroke="#ff5c5c" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/>
+      <line   id="p-lleg" x1="135" y1="110" x2="113" y2="140" stroke="#ff5c5c" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/>
+      <line   id="p-rleg" x1="135" y1="110" x2="157" y2="140" stroke="#ff5c5c" stroke-width="2.5" stroke-linecap="round" visibility="hidden"/>
+    </svg>
+  </div>
+
+  <div id="status"></div>
+  <div id="word-display"></div>
+  <div id="keyboard"></div>
+  <button id="new-game-btn" onclick="newGame()">NEW GAME</button>
+
+  <footer>Designed by Scientist47</footer>
+</div>
+
+<script>
+  const WORDS = [
+    "python","javascript","hangman","computer","keyboard","function","variable",
+    "algorithm","developer","interface","debugging","elephant","umbrella","treasure",
+    "champion","database","language","mountain","butterfly","telescope","science",
+    "engineer","software","hardware","network","security","framework","library",
+    "program","syntax","boolean","integer","operator","compiler","terminal",
+  ];
+
+  const PARTS = ["p-head","p-body","p-larm","p-rarm","p-lleg","p-rleg"];
+
+  let chosen, guessed, lives, over;
+
+  function newGame() {
+    chosen  = WORDS[Math.floor(Math.random() * WORDS.length)];
+    guessed = new Set();
+    lives   = 6;
+    over    = false;
+
+    // Hide all body parts
+    PARTS.forEach(id => document.getElementById(id).setAttribute("visibility","hidden"));
+
+    // Clear status
+    const st = document.getElementById("status");
+    st.textContent = "";
+    st.className   = "";
+
+    // Lives counter
+    document.getElementById("lives-num").textContent = lives;
+
+    // Build word display
+    const wd = document.getElementById("word-display");
+    wd.innerHTML = chosen.split("").map(() =>
+      `<div class="letter-cell"><span>&nbsp;</span><div class="bar"></div></div>`
+    ).join("");
+
+    // Build keyboard
+    const kb = document.getElementById("keyboard");
+    kb.innerHTML = "abcdefghijklmnopqrstuvwxyz".split("").map(l =>
+      `<button class="key" id="key-${l}" onclick="guess('${l}')">${l.toUpperCase()}</button>`
+    ).join("");
+  }
+
+  function guess(letter) {
+    if (over || guessed.has(letter)) return;
+    guessed.add(letter);
+
+    const btn = document.getElementById("key-" + letter);
+    btn.disabled = true;
+
+    if (chosen.includes(letter)) {
+      btn.classList.add("hit");
+      revealLetters(letter);
+      if ([...chosen].every(c => guessed.has(c))) endGame(true);
+    } else {
+      btn.classList.add("miss");
+      lives--;
+      document.getElementById("lives-num").textContent = lives;
+      document.getElementById(PARTS[6 - lives - 1]).setAttribute("visibility","visible");
+      if (lives === 0) endGame(false);
+    }
+  }
+
+  function revealLetters(letter) {
+    const cells = document.querySelectorAll("#word-display .letter-cell span");
+    chosen.split("").forEach((c, i) => {
+      if (c === letter) {
+        cells[i].textContent = c.toUpperCase();
+        cells[i].classList.remove("revealed");
+        void cells[i].offsetWidth; // reflow for animation restart
+        cells[i].classList.add("revealed");
+      }
+    });
+  }
+
+  function revealAll() {
+    const cells = document.querySelectorAll("#word-display .letter-cell span");
+    chosen.split("").forEach((c, i) => { cells[i].textContent = c.toUpperCase(); });
+  }
+
+  function endGame(won) {
+    over = true;
+    document.querySelectorAll(".key").forEach(b => b.disabled = true);
+    const st = document.getElementById("status");
+    if (won) {
+      st.textContent = "YOU WIN! 🎉";
+      st.className   = "win";
+    } else {
+      revealAll();
+      st.textContent = `GAME OVER — "${chosen.toUpperCase()}"`;
+      st.className   = "lose";
+    }
+  }
+
+  // Keyboard support (for desktop testing)
+  document.addEventListener("keydown", e => {
+    const l = e.key.toLowerCase();
+    if (/^[a-z]$/.test(l)) guess(l);
+  });
+
+  // Start on load
+  newGame();
+</script>
+</body>
+</html>
